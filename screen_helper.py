@@ -11,7 +11,6 @@ Esc / крестик - закрыть
 Запуск:
     python screen_helper.py
 """
-import os
 import sys
 import threading
 
@@ -19,12 +18,14 @@ from pynput import keyboard
 from PySide6.QtCore import QBuffer, QIODevice, QObject, QRect, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCursor, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import (
-    QApplication, QFrame, QHBoxLayout, QLineEdit, QPushButton, QTextBrowser,
+    QApplication, QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextBrowser,
     QVBoxLayout, QWidget,
 )
 from google import genai
 from google.genai import types
-from config import API_KEY, MODEL
+
+from config import API_KEY, MODEL  # config.py лежит рядом, в git не попадает
+
 
 SYSTEM = "Ты репетитор для студента. Отвечай по-русски, простым языком, по делу. Используй markdown."
 PROMPT_FULL = (
@@ -48,6 +49,27 @@ def pixmap_to_png(pm):
     return bytes(buf.data())
 
 
+class DragBar(QLabel):
+    """Полоска сверху панели: потяни мышкой, чтобы переместить окно."""
+
+    def __init__(self, get_pos, move_to):
+        super().__init__("⠿  потяни, чтобы переместить")
+        self.get_pos, self.move_to = get_pos, move_to
+        self._press = None
+        self.setCursor(Qt.SizeAllCursor)
+
+    def mousePressEvent(self, e):
+        self._press = e.globalPosition().toPoint()
+        self._origin = self.get_pos()
+
+    def mouseMoveEvent(self, e):
+        if self._press is not None:
+            self.move_to(self._origin + e.globalPosition().toPoint() - self._press)
+
+    def mouseReleaseEvent(self, e):
+        self._press = None
+
+
 # ---------------------------------------------------------------- окно с ответом и чатом
 class ResultOverlay(QWidget):
     """full=True: затемнённый экран + панель по центру.
@@ -68,6 +90,7 @@ class ResultOverlay(QWidget):
         self.panel = QFrame(self)
         self.panel.setStyleSheet(
             "QFrame { background-color: rgba(55,55,58,215); border-radius: 14px; }"
+            "QLabel { background: transparent; color: rgba(255,255,255,130); font-size: 12px; }"
             "QTextBrowser { background: transparent; color: #f2f2f2; border: none; font-size: 15px; }"
             "QLineEdit { background: rgba(255,255,255,30); color: white; border: none;"
             " border-radius: 8px; padding: 7px 10px; font-size: 14px; }"
@@ -79,7 +102,10 @@ class ResultOverlay(QWidget):
         lay.setContentsMargins(16, 10, 16, 14)
 
         top = QHBoxLayout()
-        top.addStretch()
+        top.addWidget(DragBar(
+            get_pos=lambda: self.panel.pos() if self.full else self.pos(),
+            move_to=lambda p: self.panel.move(p) if self.full else self.move(p),
+        ), 1)
         close = QPushButton("✕")
         close.clicked.connect(self.close)
         top.addWidget(close)
@@ -298,8 +324,8 @@ class Controller(QObject):
 
 
 def main():
-    if not API_KEY:
-        print("Вставь ключ в API_KEY в начале файла или задай GEMINI_API_KEY")
+    if not API_KEY or API_KEY == "your_api_token":
+        print("Впиши ключ в config.py (API_KEY)")
         sys.exit(1)
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)

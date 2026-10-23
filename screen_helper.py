@@ -25,8 +25,6 @@ from PySide6.QtWidgets import (
 from google import genai
 from google.genai import types
 from config import API_KEY, MODEL
-# ВСТАВЬ СВОЙ КЛЮЧ СЮДА (в кавычках):
-
 
 SYSTEM = "Ты репетитор для студента. Отвечай по-русски, простым языком, по делу. Используй markdown."
 PROMPT_FULL = (
